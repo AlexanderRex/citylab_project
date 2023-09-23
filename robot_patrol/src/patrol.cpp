@@ -13,12 +13,13 @@ public:
   }
 
 private:
+  // Callback to process laser scan data
   void laser_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg) {
     geometry_msgs::msg::Twist twist_msg;
+    float safest_distance = msg->ranges[360];
+    direction_ = 0;
 
-    float safest_distance = msg->ranges[360]; // Default to forward
-    direction_ = 0;                           // Default to straight
-
+    // Find the safest direction
     for (int i = 0; i < 720; ++i) {
       if (msg->ranges[i] > safest_distance) {
         safest_distance = msg->ranges[i];
@@ -26,6 +27,7 @@ private:
       }
     }
 
+    // Decide motion based on safest direction
     if (safest_distance < 1.0) {
       twist_msg.linear.x = 0.0;
     } else {
