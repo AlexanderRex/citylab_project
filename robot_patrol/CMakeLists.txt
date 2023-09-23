@@ -21,6 +21,22 @@ find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 
+# Declare a C++ executable
+add_executable(patrol_node src/patrol.cpp)
+
+# Specify libraries to link a library or executable target against
+ament_target_dependencies(patrol_node rclcpp sensor_msgs geometry_msgs)
+
+install(TARGETS
+  patrol_node
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(DIRECTORY
+  launch
+  DESTINATION share/${PROJECT_NAME}/
+)
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights
