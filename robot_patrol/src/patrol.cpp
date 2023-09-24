@@ -1,51 +1,115 @@
 #include "geometry_msgs/msg/twist.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
+#include "visualization_msgs/msg/marker.hpp"
 
-class Patrol : public rclcpp::Node {
+class RobotPatrol : public rclcpp::Node {
 public:
-  Patrol() : Node("patrol_node") {
-    publisher_ =
-        this->create_publisher<geometry_msgs::msg::Twist>("cmd_vel", 10);
-    subscriber_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
-        "scan", 10,
-        std::bind(&Patrol::laser_callback, this, std::placeholders::_1));
+  RobotPatrol() : Node("robot_patrol"), direction_(0.0) {
+    laser_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
+        "/scan", 10,
+        std::bind(&RobotPatrol::laserCallback, this, std::placeholders::_1));
+
+    cmd_vel_pub_ =
+        this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
+    left_ray_marker_pub_ =
+        this->create_publisher<visualization_msgs::msg::Marker>(
+            "/left_ray_marker", 10);
+    right_ray_marker_pub_ =
+        this->create_publisher<visualization_msgs::msg::Marker>(
+            "/right_ray_marker", 10);
+    direction_marker_pub_ =
+        this->create_publisher<visualization_msgs::msg::Marker>(
+            "/direction_marker", 10);
+
+    timer_ = this->create_wall_timer(std::chrono::milliseconds(100),
+                                     std::bind(&RobotPatrol::publishCmd, this));
   }
 
 private:
-  // Callback to process laser scan data
-  void laser_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg) {
-    geometry_msgs::msg::Twist twist_msg;
-    float safest_distance = msg->ranges[360];
-    direction_ = 0;
+  void laserCallback(const sensor_msgs::msg::LaserScan::SharedPtr msg) {
+    int num_rays = (msg->angle_max - msg->angle_min) / msg->angle_increment + 1;
 
-    // Find the safest direction
-    for (int i = 0; i < 720; ++i) {
-      if (msg->ranges[i] > safest_distance) {
-        safest_distance = msg->ranges[i];
-        direction_ = i < 360 ? -(360 - i) : i - 360;
+    // Смещаем индексы на четверть вправо и влево
+    int start_index = num_rays / 4;
+    int end_index = 3 * num_rays / 4;
+
+    float max_distance = msg->range_min;
+    int max_distance_index = start_index;
+
+    for (int i = start_index; i < end_index; i++) {
+      if (msg->ranges[i] > max_distance && msg->ranges[i] < msg->range_max) {
+        max_distance = msg->ranges[i];
+        max_distance_index = i;
       }
     }
 
-    // Decide motion based on safest direction
-    if (safest_distance < 1.0) {
-      twist_msg.linear.x = 0.0;
-    } else {
-      twist_msg.linear.x = 0.1;
-      twist_msg.angular.z = direction_ / 2.0;
-    }
+    direction_ = msg->angle_min + max_distance_index * msg->angle_increment;
 
-    publisher_->publish(twist_msg);
+    RCLCPP_INFO(this->get_logger(), "Наиболее безопасное направление: %f",
+                direction_);
+
+    // Визуализация
+    publishVectorMarker(left_ray_marker_pub_, -M_PI_2,
+                        msg->ranges[start_index]);
+    publishVectorMarker(right_ray_marker_pub_, M_PI_2,
+                        msg->ranges[end_index - 1]);
+    publishVectorMarker(direction_marker_pub_, direction_, max_distance);
   }
 
-  rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr publisher_;
-  rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr subscriber_;
+  void publishCmd() {
+    geometry_msgs::msg::Twist cmd_msg;
+    cmd_msg.linear.x = 0.1;
+    cmd_msg.angular.z = direction_ / 2.0;
+    cmd_vel_pub_->publish(cmd_msg);
+  }
+
+  void publishVectorMarker(
+      rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_pub,
+      float angle, float length) {
+    auto marker_msg = std::make_shared<visualization_msgs::msg::Marker>();
+    marker_msg->header.frame_id = "base_link";
+    marker_msg->header.stamp = this->now();
+    marker_msg->id = marker_id_;
+    marker_msg->type = visualization_msgs::msg::Marker::ARROW;
+    marker_msg->action = visualization_msgs::msg::Marker::ADD;
+
+    marker_msg->points.resize(2);
+    marker_msg->points[0].x = 0;
+    marker_msg->points[0].y = 0;
+    marker_msg->points[1].x = length * cos(angle);
+    marker_msg->points[1].y = length * sin(angle);
+
+    marker_msg->scale.x = 0.02;
+    marker_msg->scale.y = 0.05;
+    marker_msg->scale.z = 0.1;
+    marker_msg->color.r = 1.0;
+    marker_msg->color.g = 0.0;
+    marker_msg->color.b = 0.0;
+    marker_msg->color.a = 1.0;
+    marker_msg->lifetime = rclcpp::Duration(1.0);
+
+    marker_pub->publish(*marker_msg);
+    marker_id_++;
+  }
+
+  rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr laser_sub_;
+  rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr
+      left_ray_marker_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr
+      right_ray_marker_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr
+      direction_marker_pub_;
+  rclcpp::TimerBase::SharedPtr timer_;
   float direction_;
+  int marker_id_ = 0;
 };
 
 int main(int argc, char **argv) {
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<Patrol>());
+  auto node = std::make_shared<RobotPatrol>();
+  rclcpp::spin(node);
   rclcpp::shutdown();
   return 0;
 }

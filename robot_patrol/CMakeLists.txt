@@ -20,12 +20,13 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 
 # Declare a C++ executable
 add_executable(patrol_node src/patrol.cpp)
 
 # Specify libraries to link a library or executable target against
-ament_target_dependencies(patrol_node rclcpp sensor_msgs geometry_msgs)
+ament_target_dependencies(patrol_node rclcpp sensor_msgs geometry_msgs visualization_msgs)
 
 install(TARGETS
   patrol_node
