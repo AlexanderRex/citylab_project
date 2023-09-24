@@ -44,10 +44,11 @@ private:
       }
     }
 
+    RCLCPP_INFO(this->get_logger(), "Max distance in ranges: %f", max_distance);
+
     direction_ = msg->angle_min + max_distance_index * msg->angle_increment;
 
-    RCLCPP_INFO(this->get_logger(), "Наиболее безопасное направление: %f",
-                direction_);
+    RCLCPP_INFO(this->get_logger(), "Safest direction: %f", direction_);
 
     // Визуализация
     publishVectorMarker(left_ray_marker_pub_, -M_PI_2,
