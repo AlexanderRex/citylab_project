@@ -5,7 +5,8 @@
 
 class RobotPatrol : public rclcpp::Node {
 public:
-  RobotPatrol() : Node("robot_patrol"), direction_(0.0) {
+  RobotPatrol() : Node("robot_patrol") {
+
     laser_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
         "/scan", 10,
         std::bind(&RobotPatrol::laserCallback, this, std::placeholders::_1));
@@ -27,17 +28,23 @@ public:
   }
 
 private:
+  float direction_ = 0.0;
   void laserCallback(const sensor_msgs::msg::LaserScan::SharedPtr msg) {
-    int num_rays = (msg->angle_max - msg->angle_min) / msg->angle_increment + 1;
+    float num_rays =
+        (msg->angle_max - msg->angle_min) / msg->angle_increment + 1;
 
+    RCLCPP_INFO(this->get_logger(), "Number of rays: %f", num_rays);
     // Смещаем индексы на четверть вправо и влево
-    int start_index = num_rays / 4;
-    int end_index = 3 * num_rays / 4;
+    float start_index = num_rays / 4;
+    float end_index = 3 * num_rays / 4;
+
+    RCLCPP_INFO(this->get_logger(), "Start index: %f, end index: %f",
+                start_index, end_index);
 
     float max_distance = msg->range_min;
-    int max_distance_index = start_index;
+    float max_distance_index = start_index;
 
-    for (int i = start_index; i < end_index; i++) {
+    for (size_t i = start_index; i < end_index; i++) {
       if (msg->ranges[i] > max_distance && msg->ranges[i] < msg->range_max) {
         max_distance = msg->ranges[i];
         max_distance_index = i;
@@ -103,7 +110,6 @@ private:
   rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr
       direction_marker_pub_;
   rclcpp::TimerBase::SharedPtr timer_;
-  float direction_;
   int marker_id_ = 0;
 };
 
