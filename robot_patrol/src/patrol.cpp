@@ -6,13 +6,13 @@
 class RobotPatrol : public rclcpp::Node {
 public:
   RobotPatrol() : Node("robot_patrol") {
-
     laser_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
         "/scan", 10,
         std::bind(&RobotPatrol::laserCallback, this, std::placeholders::_1));
 
     cmd_vel_pub_ =
         this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
+
     left_ray_marker_pub_ =
         this->create_publisher<visualization_msgs::msg::Marker>(
             "/left_ray_marker", 10);
@@ -29,40 +29,46 @@ public:
 
 private:
   float direction_ = 0.0;
+  const float safety_distance = 0.35; // Distance to obstacle
+
   void laserCallback(const sensor_msgs::msg::LaserScan::SharedPtr msg) {
-    float num_rays =
-        (msg->angle_max - msg->angle_min) / msg->angle_increment + 1;
+    std::vector<std::pair<size_t, size_t>> gaps;
+    bool in_gap = false;
+    size_t start_index = 0;
 
-    RCLCPP_INFO(this->get_logger(), "Number of rays: %f", num_rays);
-    // Смещаем индексы на четверть вправо и влево
-    float start_index = num_rays / 4;
-    float end_index = 3 * num_rays / 4;
-
-    RCLCPP_INFO(this->get_logger(), "Start index: %f, end index: %f",
-                start_index, end_index);
-
-    float max_distance = msg->range_min;
-    float max_distance_index = start_index;
-
-    for (size_t i = start_index; i < end_index; i++) {
-      if (msg->ranges[i] > max_distance && msg->ranges[i] < msg->range_max) {
-        max_distance = msg->ranges[i];
-        max_distance_index = i;
+    for (size_t i = 0; i < msg->ranges.size(); i++) {
+      if (msg->ranges[i] > safety_distance && !in_gap) {
+        in_gap = true;
+        start_index = i;
+      } else if ((msg->ranges[i] <= safety_distance ||
+                  i == msg->ranges.size() - 1) &&
+                 in_gap) {
+        in_gap = false;
+        gaps.push_back({start_index, i - 1});
       }
     }
 
-    RCLCPP_INFO(this->get_logger(), "Max distance in ranges: %f", max_distance);
+    size_t max_gap_length = 0;
+    std::pair<size_t, size_t> max_gap = {0, 0};
+    for (const auto &gap : gaps) {
+      size_t gap_length = gap.second - gap.first;
+      if (gap_length > max_gap_length) {
+        max_gap_length = gap_length;
+        max_gap = gap;
+      }
+    }
 
-    direction_ = msg->angle_min + max_distance_index * msg->angle_increment;
+    size_t center_index = (max_gap.first + max_gap.second) / 2;
+    direction_ = msg->angle_min + center_index * msg->angle_increment;
 
-    RCLCPP_INFO(this->get_logger(), "Safest direction: %f", direction_);
-
-    // Визуализация
-    publishVectorMarker(left_ray_marker_pub_, -M_PI_2,
-                        msg->ranges[start_index]);
-    publishVectorMarker(right_ray_marker_pub_, M_PI_2,
-                        msg->ranges[end_index - 1]);
-    publishVectorMarker(direction_marker_pub_, direction_, max_distance);
+    publishVectorMarker(left_ray_marker_pub_,
+                        msg->angle_min + max_gap.first * msg->angle_increment,
+                        msg->ranges[max_gap.first]);
+    publishVectorMarker(right_ray_marker_pub_,
+                        msg->angle_min + max_gap.second * msg->angle_increment,
+                        msg->ranges[max_gap.second]);
+    publishVectorMarker(direction_marker_pub_, direction_,
+                        msg->ranges[center_index]);
   }
 
   void publishCmd() {
@@ -78,7 +84,7 @@ private:
     auto marker_msg = std::make_shared<visualization_msgs::msg::Marker>();
     marker_msg->header.frame_id = "base_link";
     marker_msg->header.stamp = this->now();
-    marker_msg->id = marker_id_;
+    marker_msg->id = marker_id_++;
     marker_msg->type = visualization_msgs::msg::Marker::ARROW;
     marker_msg->action = visualization_msgs::msg::Marker::ADD;
 
@@ -98,7 +104,6 @@ private:
     marker_msg->lifetime = rclcpp::Duration(1.0);
 
     marker_pub->publish(*marker_msg);
-    marker_id_++;
   }
 
   rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr laser_sub_;
