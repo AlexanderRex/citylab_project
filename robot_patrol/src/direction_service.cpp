@@ -18,9 +18,17 @@ private:
 
     const sensor_msgs::msg::LaserScan &scan = req->laser_data;
 
+    RCLCPP_INFO(this->get_logger(), "Received a service request");
+
+    RCLCPP_INFO(this->get_logger(), "Angle Min: %f, Angle Max: %f",
+                req->laser_data.angle_min, req->laser_data.angle_max);
+
     std::string direction = analyzeLaserData(scan);
 
     res->direction = direction;
+
+    RCLCPP_INFO(this->get_logger(), "Determined direction: %s",
+                direction.c_str());
   }
 
   std::string analyzeLaserData(const sensor_msgs::msg::LaserScan &scan) {
