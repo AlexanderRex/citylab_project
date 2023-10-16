@@ -27,6 +27,9 @@ find_package(patrol_interfaces REQUIRED)
 add_executable(patrol_node src/patrol.cpp)
 ament_target_dependencies(patrol_node rclcpp sensor_msgs geometry_msgs visualization_msgs)
 
+add_executable(patrol_with_service src/patrol_with_service.cpp)
+ament_target_dependencies(patrol_with_service rclcpp sensor_msgs geometry_msgs visualization_msgs patrol_interfaces)
+
 add_executable(test_service src/test_service.cpp)
 ament_target_dependencies(test_service rclcpp sensor_msgs geometry_msgs patrol_interfaces)
 
@@ -38,6 +41,7 @@ install(TARGETS
   patrol_node
   test_service
   direction_service
+  patrol_with_service
   DESTINATION lib/${PROJECT_NAME}
 )
 
