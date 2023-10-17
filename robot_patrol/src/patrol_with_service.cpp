@@ -2,6 +2,7 @@
 #include "patrol_interfaces/srv/get_direction.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
+#include "visualization_msgs/msg/marker.hpp"
 
 class RobotPatrol : public rclcpp::Node {
 public:
@@ -59,8 +60,8 @@ private:
               cmd_msg.linear.x = 0.1;
               cmd_msg.angular.z = -0.5;
             } else {
-              RCLCPP_ERROR(this->get_logger(),
-                           "Неверное направление получено от сервиса.");
+              cmd_msg.linear.x = 0.0;
+              cmd_msg.angular.z = 0.0;
               return;
             }
             cmd_vel_pub_->publish(cmd_msg);
