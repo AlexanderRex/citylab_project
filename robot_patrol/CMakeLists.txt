@@ -18,10 +18,15 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_action REQUIRED)
+
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(patrol_interfaces REQUIRED)
+
+
 
 # Declare a C++ executable
 add_executable(patrol_node src/patrol.cpp)
@@ -29,6 +34,15 @@ ament_target_dependencies(patrol_node rclcpp sensor_msgs geometry_msgs visualiza
 
 add_executable(patrol_with_service src/patrol_with_service.cpp)
 ament_target_dependencies(patrol_with_service rclcpp sensor_msgs geometry_msgs visualization_msgs patrol_interfaces)
+
+add_executable(go_to_pose_action src/go_to_pose_action.cpp)
+ament_target_dependencies(go_to_pose_action
+  rclcpp rclcpp_action
+  sensor_msgs
+  nav_msgs
+  geometry_msgs
+  visualization_msgs
+  patrol_interfaces)
 
 add_executable(test_service src/test_service.cpp)
 ament_target_dependencies(test_service rclcpp sensor_msgs geometry_msgs patrol_interfaces)
@@ -42,6 +56,7 @@ install(TARGETS
   test_service
   direction_service
   patrol_with_service
+  go_to_pose_action
   DESTINATION lib/${PROJECT_NAME}
 )
 
