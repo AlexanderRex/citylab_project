@@ -39,9 +39,9 @@ private:
   const double Kp_ = 0.5;
   const double Ki_ = 0.01;
   const double Kd_ = 0.1;
-  const double MAX_ANGULAR_SPEED = 0.5; // Limit for angular speed
+  const double MAX_LINEAR_SPEED = 0.2;
+  const double MAX_ANGULAR_SPEED = 0.5;
 
-  // Update robot's position and orientation based on odometry data
   void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg) {
     tf2::Quaternion q(
         msg->pose.pose.orientation.x, msg->pose.pose.orientation.y,
@@ -55,7 +55,6 @@ private:
     current_pos_.theta = yaw;
   }
 
-  // Handle incoming goal requests
   rclcpp_action::GoalResponse
   handle_goal(std::shared_ptr<const GoToPoseAction::Goal> goal) {
     RCLCPP_INFO(this->get_logger(),
@@ -65,7 +64,6 @@ private:
     return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
   }
 
-  // Handle request to cancel the goal
   rclcpp_action::CancelResponse
   handle_cancel(const std::shared_ptr<GoalHandleGoToPose> /* goal_handle */) {
     RCLCPP_INFO(this->get_logger(), "Received request to cancel goal");
@@ -76,39 +74,34 @@ private:
     return rclcpp_action::CancelResponse::ACCEPT;
   }
 
-  // Handle accepted goals and start execution
   void handle_accepted(const std::shared_ptr<GoalHandleGoToPose> goal_handle) {
     std::thread{[this, goal_handle]() { this->execute(goal_handle); }}.detach();
   }
 
-  // Utility function to clamp values
   double clamp(double val, double min_val, double max_val) {
     return std::max(min_val, std::min(val, max_val));
   }
 
-  // Main function to drive the robot towards the goal
   void execute(const std::shared_ptr<GoalHandleGoToPose> goal_handle) {
     RCLCPP_INFO(this->get_logger(), "Executing goal");
     geometry_msgs::msg::Twist cmd_vel;
 
     const double position_error_margin = 0.1;
     const double angle_error_margin = 0.1;
-    const double angle_deadzone = 0.05; // A small deadzone for angle
+    const double angle_deadzone = 0.05;
 
-    // Stage 1: Drive towards the target while adjusting the angle
     while (rclcpp::ok()) {
       double diff_x = desired_pos_.x - current_pos_.x;
       double diff_y = desired_pos_.y - current_pos_.y;
+      double distance_to_goal = sqrt(diff_x * diff_x + diff_y * diff_y);
       double angle_to_goal = atan2(diff_y, diff_x);
       double error = angle_to_goal - current_pos_.theta;
 
-      // Wrap the error to the range -pi to pi
       while (error > M_PI)
         error -= 2.0 * M_PI;
       while (error < -M_PI)
         error += 2.0 * M_PI;
 
-      // If error is within the deadzone, consider it as zero
       if (abs(error) < angle_deadzone)
         error = 0;
 
@@ -123,26 +116,24 @@ private:
         break;
       }
 
-      cmd_vel.linear.x = 0.2;
+      cmd_vel.linear.x =
+          clamp(0.2 * (distance_to_goal / 2.0), 0.0, MAX_LINEAR_SPEED);
       cmd_vel.angular.z =
           clamp(angular_speed, -MAX_ANGULAR_SPEED, MAX_ANGULAR_SPEED);
       cmd_vel_pub_->publish(cmd_vel);
       rclcpp::sleep_for(std::chrono::milliseconds(100));
     }
 
-    // Stage 2: Adjust orientation after reaching the target position
     cmd_vel.linear.x = 0.0;
     while (rclcpp::ok()) {
       double angle_to_goal = desired_pos_.theta;
       double error = angle_to_goal - current_pos_.theta;
 
-      // Wrap the error to the range -pi to pi
       while (error > M_PI)
         error -= 2.0 * M_PI;
       while (error < -M_PI)
         error += 2.0 * M_PI;
 
-      // If error is within the deadzone, consider it as zero
       if (abs(error) < angle_deadzone)
         error = 0;
 
@@ -157,8 +148,8 @@ private:
       rclcpp::sleep_for(std::chrono::milliseconds(100));
     }
 
-    // Stop the robot after reaching the goal
     cmd_vel.angular.z = 0.0;
+    cmd_vel.linear.x = 0.0;
     cmd_vel_pub_->publish(cmd_vel);
     auto result = std::make_shared<GoToPoseAction::Result>();
     result->status = true;
