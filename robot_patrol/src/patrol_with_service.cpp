@@ -55,10 +55,10 @@ private:
               cmd_msg.angular.z = 0.0;
             } else if (response->direction == "left") {
               cmd_msg.linear.x = 0.1;
-              cmd_msg.angular.z = 0.5;
+              cmd_msg.angular.z = -0.5;
             } else if (response->direction == "right") {
               cmd_msg.linear.x = 0.1;
-              cmd_msg.angular.z = -0.5;
+              cmd_msg.angular.z = 0.5;
             } else {
               cmd_msg.linear.x = 0.0;
               cmd_msg.angular.z = 0.0;

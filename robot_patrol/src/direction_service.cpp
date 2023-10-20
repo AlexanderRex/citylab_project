@@ -40,39 +40,39 @@ private:
 
     for (size_t i = 0; i < scan.ranges.size(); i++) {
       double angle = scan.angle_min + i * scan.angle_increment;
+      double weight = 1 / (scan.ranges[i] + 0.01);
 
       if (angle >= -M_PI / 2 && angle < -M_PI / 6) {
-        total_dist_sec_left += scan.ranges[i];
+        total_dist_sec_left += weight * scan.ranges[i];
       } else if (angle >= M_PI / 6 && angle <= M_PI / 2) {
-        total_dist_sec_right += scan.ranges[i];
+        total_dist_sec_right += weight * scan.ranges[i];
       } else if (angle >= -M_PI / 6 && angle < M_PI / 6) {
-        total_dist_sec_front += scan.ranges[i];
+        total_dist_sec_front += weight * scan.ranges[i];
       }
     }
 
     if (total_dist_sec_front >= total_dist_sec_left &&
         total_dist_sec_front >= total_dist_sec_right) {
       return "front";
-    } else if (total_dist_sec_left >= total_dist_sec_front &&
-               total_dist_sec_left >= total_dist_sec_right) {
-      return "right";
-    } else {
+    } else if (total_dist_sec_left > total_dist_sec_right) {
       return "left";
+    } else {
+      return "right";
     }
   }
 
   void visualizeSectorBoundaries() {
-    // Левый сектор
+    // Left sector
     visualization_msgs::msg::Marker left_sector =
         createSectorMarker(0, -M_PI / 2, -M_PI / 6, 1.0, 0.0, 0.0);
     marker_pub_->publish(left_sector);
 
-    // Передний сектор
+    // Front sector
     visualization_msgs::msg::Marker front_sector =
         createSectorMarker(1, -M_PI / 6, M_PI / 6, 0.0, 1.0, 0.0);
     marker_pub_->publish(front_sector);
 
-    // Правый сектор
+    // Right sector
     visualization_msgs::msg::Marker right_sector =
         createSectorMarker(2, M_PI / 6, M_PI / 2, 0.0, 0.0, 1.0);
     marker_pub_->publish(right_sector);
